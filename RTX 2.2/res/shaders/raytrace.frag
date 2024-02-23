@@ -104,7 +104,7 @@ vec3 sky(Ray ray) {
     vec3 skyColor = texture2D(skyboxSampler, skyUv).rgb;
     vec3 sunColor = mix(vec3(0.0), SUN_COLOR, pow(clamp(dot(ray.direction, normalize(sunDirection)), 0.0, 1.0), 1.0 / SUN_RADIUS));
 
-    return skyColor * SKY_BRIGHTNESS + sunColor;
+    return skyColor * SKY_BRIGHTNESS;
 }
 
 HitInfo checkSphere(Ray ray, Sphere sphere) {
@@ -140,13 +140,13 @@ HitInfo rayCast(Ray ray) {
     HitInfo floorHitInfo = checkBox(ray, Box(vec3(-10.0, -1.0, -10.0), vec3(20.0, 1.0, 20.0), Material(vec3(0.9), 1.0, 0.0, 0.0, false)));
     if(floorHitInfo.hit && floorHitInfo.distance < hitInfo.distance) hitInfo = floorHitInfo;
 
-    HitInfo wallHitInfo = checkBox(ray, Box(vec3(-10.0, 0.0, -10.0), vec3(20.0, 10.0, 1.0), Material(vec3(0.9, 0.2, 0.4), 0.0, 0.0, 0.0, false)));
+    HitInfo wallHitInfo = checkBox(ray, Box(vec3(-10.0, 0.0, -10.0), vec3(20.0, 10.0, 1.0), Material(vec3(1, 1, 1), 0.0, 0.0, 0.0, false)));
     if(wallHitInfo.hit && wallHitInfo.distance < hitInfo.distance) hitInfo = wallHitInfo;
 
     HitInfo anotherWallHitInfo = checkBox(ray, Box(vec3(-10.0, 0.0, -10.0), vec3(1.0, 10.0, 20.0), Material(vec3(0.4, 0.9, 0.2), 1.0, 0.0, 0.0, false)));
     if(anotherWallHitInfo.hit && anotherWallHitInfo.distance < hitInfo.distance) hitInfo = anotherWallHitInfo;
 
-    HitInfo sphereHitInfo = checkSphere(ray, Sphere(vec3(4.0, 1.0, 4.0), 1.0, Material(vec3(0.2, 0.5, 1.0), 0.00, 0.15, 0.4, false)));
+    HitInfo sphereHitInfo = checkSphere(ray, Sphere(vec3(4.0, 1.0, 4.0), 1.0, Material(vec3(0.2, 0.5, 1.0), 0.00, 1.3, 0.4, false)));
     if(sphereHitInfo.hit && sphereHitInfo.distance < hitInfo.distance) hitInfo = sphereHitInfo;
     
     HitInfo texturedSphereHitInfo = checkSphere(ray, Sphere(vec3(2.0, 1.0, 1.0), 1.0, Material(vec3(1.0), 0.4, 0.0, 0.0, false)));
@@ -179,7 +179,8 @@ vec3 rayTrace(Ray ray, inout float seed) {
     }
    
     
-    vec3 colorIndirect = vec3(0.0);
+    vec3 colorIndirect = vec3(0.0, 0.0, 0.0);
+    vec3 rayColor = vec3(1.0, 1.0, 1.0);
     // Indirect lighting
     for (int i = 0;i<4;i++) {
         // Indirect Albedo
@@ -191,7 +192,7 @@ vec3 rayTrace(Ray ray, inout float seed) {
 
         
         HitInfo hitInfoIndirect = rayCast(ray);
-        if(!hitInfoIndirect.hit) {colorIndirect += sky(ray); break;}
+        if(!hitInfoIndirect.hit) {colorIndirect += sky(ray)*rayColor; break;}
         
         // Indirect Shadow
         shadowRay.position = ray.position + ray.direction * (hitInfoIndirect.distance - 0.001);
@@ -199,14 +200,15 @@ vec3 rayTrace(Ray ray, inout float seed) {
         HitInfo hitInfoShadowIndirect = rayCast(shadowRay);
 
         if (!hitInfoShadowIndirect.hit) {
-            renderPassIndirect = vec3(dot(hitInfoIndirect.normal,shadowRay.direction))*hitInfoIndirect.material.color*SUN_COLOR;
+            renderPassIndirect = vec3(dot(hitInfoIndirect.normal,shadowRay.direction))*hitInfoIndirect.material.diffuse*SUN_COLOR*hitInfoIndirect.material.color;
         }
-        hitInfoIndirect.material.color=hitInfo.material.color;
+        //hitInfoIndirect.material.color=hitInfo.material.color;
         hitInfo = hitInfoIndirect;
 
-        colorIndirect += renderPassIndirect;
+        colorIndirect += hitInfoIndirect.material.color*renderPassIndirect*rayColor;
+        rayColor*=hitInfoIndirect.material.color;
     }
-     color *= renderPass+colorIndirect;
+    color *= renderPass+colorIndirect;
     return color;
     }
 
@@ -266,15 +268,15 @@ void main() {
 
    
     float seed = (uv.x / (screenResolution.x / screenResolution.y) + uv.y) * 392.38 + 3.43121412313;
-    if (!NEWRENDERING) {
+    //if (!NEWRENDERING) {
         seed+= denoiseFactor;
-    }
+    //}
     fragColor = vec4(denoise(ray, seed), 1.0);
 
-    if (!NEWRENDERING) {
+    //if (!NEWRENDERING) {
 
     vec4 lastFrameColor = texture2D(lastFrameSampler, uv / 2.0 + 0.5);
     if(lastFrameColor.a != 0.0)
         fragColor = mix(lastFrameColor, fragColor, denoiseFactor);
-    }
+    //}
 }
